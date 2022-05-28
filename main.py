@@ -28,12 +28,12 @@ First part: non-targeted attack
         2. Deepfool Method
     use 2 metrics to assess the performance -
         1. attack success rate ASR = No(attack success) / No(predict correct)
-        2. rou = E(sum(|perturbation| / |img|)) -> indicates how different the adversial
+        2. rou = E(sum(|perturbation| / |img|)) -> indicates how different the adversarial
     example is to the original image
 '''
 # FGSM attack
 epsilons = np.array([0, 1, 10, 20, 50]) / 255
-adv_examples = [[] for _ in epsilons]
+fgsm_examples = [[] for _ in epsilons]
 asr_values = np.zeros_like(epsilons)
 rou_value = np.zeros_like(epsilons)
 show_num = 5
@@ -65,10 +65,10 @@ for i, epsilon in enumerate(epsilons):
             correct += 1
         else:
             rou += pert.norm() / img.norm()
-        if len(adv_examples[i]) < show_num and (pert_target != target or i == 0):
+        if len(fgsm_examples[i]) < show_num and (pert_target != target or i == 0):
             img = img.squeeze().detach().numpy()
             pert_img = pert_img.squeeze().detach().numpy()
-            adv_examples[i].append((orig_target.item(), pert_target.item(), img, pert_img))
+            fgsm_examples[i].append((orig_target.item(), pert_target.item(), img, pert_img))
         
         if (k + 1) % 2000 == 0:
             end = time()
@@ -87,14 +87,14 @@ for i, epsilon in enumerate(epsilons):
         asr_values[i] = attack_success_num / attack_num
         print('epsilon: {:.3}, accuracy: {:.3}, attack success rate: {:.3}, rou value: {:.3}'.format(epsilon, acc_rate, asr_values[i], rou_value[i]))
 
-np.save('./fgsm_adv_examples', np.array(adv_examples))
+np.save('./fgsm_examples', np.array(fgsm_examples))
 
-adv_examples = np.load('./fgsm_adv_examples.npy', allow_pickle=True)
+fgsm_examples = np.load('./fgsm_examples.npy', allow_pickle=True)
 row, col, idx = len(epsilons), show_num, 0
 plt.figure(figsize=(10, 10))
 for i in range(row):
     for j in range(show_num):
-        orig_target, pert_target, img, pert_img = adv_examples[i][j]
+        orig_target, pert_target, img, pert_img = fgsm_examples[i][j]
         idx += 1
         plt.subplot(row, col * 2, idx)
         if j == 0:
