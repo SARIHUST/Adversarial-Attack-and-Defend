@@ -3,17 +3,20 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from time import time
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def train(net, train_loader, test_loader, loss_fn, optimizer, epochs=10, write=False):
+def train(net, loss_fn, optimizer, train_loader, test_loader=None, epochs=10, write=False):
     if write:
         writer = SummaryWriter('./log')
 
     round = 0
+    highest_acc = 0
     for i in range(epochs):
         print('================Epoch {}================'.format(i + 1))
+        start = time()
         total_train_accurate, total_train_num, total_train_loss = 0, 0, 0
         net.to(device)
         net.train()
@@ -45,38 +48,58 @@ def train(net, train_loader, test_loader, loss_fn, optimizer, epochs=10, write=F
             round += 1
 
         # compute test statistics of this epoch
-        total_test_accurate, total_test_num, total_test_loss = 0, 0, 0
-        net.eval()
-        with torch.no_grad():
-            for data in test_loader:
-                inputs, targets = data
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-                outputs = net(inputs)
+        if test_loader is not None:
+            total_test_accurate, total_test_num, total_test_loss = 0, 0, 0
+            net.eval()
+            with torch.no_grad():
+                for data in test_loader:
+                    inputs, targets = data
+                    inputs = inputs.to(device)
+                    targets = targets.to(device)
+                    outputs = net(inputs)
 
-                loss = loss_fn(outputs, targets)
-                y_predict = F.softmax(outputs, dim=1)
-                accurate = sum(torch.argmax(y_predict, dim=1) == targets)
-                total_test_accurate += accurate
-                total_test_num += len(outputs)
-                total_test_loss += loss
+                    loss = loss_fn(outputs, targets)
+                    y_predict = F.softmax(outputs, dim=1)
+                    accurate = sum(torch.argmax(y_predict, dim=1) == targets)
+                    total_test_accurate += accurate
+                    total_test_num += len(outputs)
+                    total_test_loss += loss
                 
         # output statistics of this epoch
+        end = time()
         train_acc = total_train_accurate / total_train_num
-        test_acc = total_test_accurate / total_test_num
         print('train accuracy: {}'.format(train_acc))
         print('train loss: {}'.format(total_train_loss))
-        print('test accuracy: {}'.format(test_acc))
-        print('test loss: {}'.format(total_test_loss))
+        if test_loader is not None:
+            test_acc = total_test_accurate / total_test_num
+            print('test accuracy: {}'.format(test_acc))
+            print('test loss: {}'.format(total_test_loss))
+            highest_acc = max(highest_acc, test_acc)
+        print('total time spent: {:.3f}'.format(end - start))
 
         if write:
             writer.add_scalar('train accuracy on each epoch', train_acc, i)
             writer.add_scalar('train loss on each epoch', total_train_loss, i)
-            writer.add_scalar('test accuracy on each epoch', test_acc, i)
-            writer.add_scalar('test loss on each epoch', total_test_loss, i)
+            if test_loader is not None:
+                writer.add_scalar('test accuracy on each epoch', test_acc, i)
+                writer.add_scalar('test loss on each epoch', total_test_loss, i)
 
     if write:
         writer.close()
+    
+    return highest_acc
+
+def test(net, test_loader):
+    accurate, total = 0, 0
+    net = net.to(device)
+    net.eval()
+    for imgs, targets in test_loader:
+        imgs = imgs.to(device)
+        targets = targets.to(device)
+        outputs = net(imgs)
+        accurate += sum(torch.argmax(outputs, dim=1) == targets)
+        total += len(targets)
+    return accurate / total
 
 def getKLayerFeatureMap(model_layers, k, x):
     '''
@@ -99,6 +122,7 @@ def showFeatureMap(feature_map):
     plt.show()
 
 def deepfool(img, net, k=10, overshoot=0.02, max_iter=50):
+    # img should have the shape of (C, H, W)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     img.to(device)
     net.to(device)
