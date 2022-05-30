@@ -174,9 +174,12 @@ def deepfool(img, net, k=10, overshoot=0.02, max_iter=50):
     return r, img_pert, lx
 
 
-def fgsm_attack(img, data_grad, epsilon):
+def fgsm_attack(img, data_grad, epsilon, targeted=False):
     sign_data_grad = data_grad.sign()
     pert = epsilon * sign_data_grad
-    pert_img = img + pert
+    if targeted:
+        pert_img = img - pert
+    else:
+        pert_img = img + pert
     pert_img = torch.clamp(pert_img, 0, 1)
     return pert_img, pert

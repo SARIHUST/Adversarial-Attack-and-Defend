@@ -2,4 +2,4 @@
 *.pt
 *.npy
 scratch.py
-./data/
+data/
